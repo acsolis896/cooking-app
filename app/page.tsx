@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 
@@ -17,20 +18,44 @@ export default async function Home() {
   }
 
   return (
-    <div className="flex flex-col flex-1 items-center justify-center p-6 bg-zinc-50">
-      <div className="max-w-md w-full text-center">
-        <h1 className="text-3xl font-bold mb-2">Cooking App</h1>
-        <p className="text-zinc-600 mb-6">
-          Signed in as <strong>{user.email}</strong>
-        </p>
-        <form action={signOut}>
-          <button
-            type="submit"
-            className="px-6 py-2 bg-zinc-800 text-white rounded-lg font-medium"
+    <div className="min-h-screen p-6 bg-zinc-50">
+      <div className="max-w-xl mx-auto">
+        <div className="flex items-center justify-between mb-10">
+          <div>
+            <h1 className="text-2xl font-bold">Cooking App</h1>
+            <p className="text-sm text-zinc-500">{user.email}</p>
+          </div>
+          <form action={signOut}>
+            <button
+              type="submit"
+              className="text-sm text-zinc-500 underline"
+            >
+              Sign out
+            </button>
+          </form>
+        </div>
+
+        <nav className="grid gap-3">
+          <Link
+            href="/recipes"
+            className="block p-5 bg-white rounded-lg border border-zinc-200"
           >
-            Sign out
-          </button>
-        </form>
+            <div className="font-semibold text-lg">My recipes</div>
+            <div className="text-sm text-zinc-500 mt-1">
+              Browse and add to your collection
+            </div>
+          </Link>
+
+          <div className="block p-5 bg-zinc-100 rounded-lg border border-zinc-200 opacity-60">
+            <div className="font-semibold text-lg">Meal planner</div>
+            <div className="text-sm text-zinc-500 mt-1">Coming soon</div>
+          </div>
+
+          <div className="block p-5 bg-zinc-100 rounded-lg border border-zinc-200 opacity-60">
+            <div className="font-semibold text-lg">Grocery list</div>
+            <div className="text-sm text-zinc-500 mt-1">Coming soon</div>
+          </div>
+        </nav>
       </div>
     </div>
   )
