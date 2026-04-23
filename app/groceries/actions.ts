@@ -82,3 +82,41 @@ export async function toggleGroceryItem(id: string, checked: boolean) {
   if (error) throw new Error(error.message)
   revalidatePath('/groceries')
 }
+
+export async function addManualItem(formData: FormData) {
+  const name = ((formData.get('name') as string) ?? '').trim()
+  const quantityRaw = ((formData.get('quantity') as string) ?? '').trim()
+  const unit = ((formData.get('unit') as string) ?? '').trim()
+  const weekISO = formData.get('week') as string
+
+  if (!name) return
+  if (!weekISO) throw new Error('Missing week')
+
+  const supabase = await createClient()
+  const { data: userData, error: userError } = await supabase.auth.getUser()
+  if (userError || !userData.user) throw new Error('Not logged in')
+  const userId = userData.user.id
+
+  const monday = getMondayOfWeek(parseISODate(weekISO))
+  const mondayStr = formatISODate(monday)
+
+  const { error } = await supabase.from('grocery_items').insert({
+    user_id: userId,
+    name,
+    quantity: quantityRaw ? Number(quantityRaw) : null,
+    unit: unit || null,
+    source_recipe_id: null, // manual
+    week_start: mondayStr,
+    checked: false,
+  })
+  if (error) throw new Error(error.message)
+
+  revalidatePath('/groceries')
+}
+
+export async function removeGroceryItem(id: string) {
+  const supabase = await createClient()
+  const { error } = await supabase.from('grocery_items').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+  revalidatePath('/groceries')
+}

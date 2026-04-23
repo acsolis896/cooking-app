@@ -10,6 +10,7 @@ import {
 } from '@/lib/dates'
 import { GenerateButton } from './GenerateButton'
 import { GroceryItemRow } from './GroceryItemRow'
+import { AddItemForm } from './AddItemForm'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,7 +73,11 @@ export default async function GroceriesPage({ searchParams }: PageProps) {
         </div>
 
         <div className="mb-4">
-          <GenerateButton week={mondayStr} hasItems={(items ?? []).length > 0} />
+            <GenerateButton week={mondayStr} hasItems={(items ?? []).length > 0} />
+        </div>
+
+        <div className="mb-4">
+            <AddItemForm week={mondayStr} />
         </div>
 
         {(!items || items.length === 0) ? (

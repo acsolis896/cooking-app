@@ -1,7 +1,7 @@
 'use client'
 
 import { useTransition } from 'react'
-import { toggleGroceryItem } from './actions'
+import { removeGroceryItem, toggleGroceryItem } from './actions'
 
 type Props = {
   item: {
@@ -15,21 +15,27 @@ type Props = {
 }
 
 export function GroceryItemRow({ item }: Props) {
-  const [pending, startTransition] = useTransition()
+  const [togglePending, startToggle] = useTransition()
+  const [removePending, startRemove] = useTransition()
+  const pending = togglePending || removePending
 
   function onToggle() {
-    startTransition(() => {
+    startToggle(() => {
       toggleGroceryItem(item.id, !item.checked)
     })
   }
 
+  function onRemove() {
+    startRemove(() => {
+      removeGroceryItem(item.id)
+    })
+  }
+
   return (
-    <li>
-      <label
-        className={`flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-neutral-50 ${
-          pending ? 'opacity-50' : ''
-        }`}
-      >
+    <li className={`flex items-center gap-2 rounded-lg px-2 hover:bg-neutral-50 ${
+      pending ? 'opacity-50' : ''
+    }`}>
+      <label className="flex flex-1 cursor-pointer items-center gap-3 py-2">
         <input
           type="checkbox"
           checked={item.checked}
@@ -51,6 +57,15 @@ export function GroceryItemRow({ item }: Props) {
           {item.name}
         </span>
       </label>
+      <button
+        type="button"
+        onClick={onRemove}
+        disabled={pending}
+        aria-label="Remove item"
+        className="shrink-0 rounded-md p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-50"
+      >
+        ✕
+      </button>
     </li>
   )
 }
