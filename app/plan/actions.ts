@@ -23,3 +23,10 @@ export async function addMealToPlan(formData: FormData) {
   revalidatePath('/plan')
   redirect(`/plan?week=${week}`)
 }
+
+export async function removeMealFromPlan(id: string) {
+  const supabase = await createClient()
+  const { error } = await supabase.from('meal_plans').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+  revalidatePath('/plan')
+}

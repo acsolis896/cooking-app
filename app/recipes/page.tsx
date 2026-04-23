@@ -38,14 +38,19 @@ export default async function RecipesPage() {
   return (
     <main className="min-h-dvh bg-white px-4 py-6 pb-24">
       <div className="mx-auto max-w-xl">
+        <div className="mb-2">
+        <Link href="/" className="text-sm text-neutral-600 hover:text-neutral-900">
+            ← Home
+        </Link>
+        </div>
         <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">My recipes</h1>
-          <Link
+        <h1 className="text-2xl font-semibold">My recipes</h1>
+        <Link
             href="/recipes/new"
             className="rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
-          >
+        >
             + Add
-          </Link>
+        </Link>
         </div>
 
         {(!recipes || recipes.length === 0) ? (

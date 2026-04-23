@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { DeleteButton } from './DeleteButton'
+import { BackButton } from './BackButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,9 +64,7 @@ export default async function RecipeDetailPage({ params }: PageProps) {
 
       <div className="mx-auto max-w-xl px-4 py-6">
         <div className="mb-4 flex items-center justify-between">
-          <Link href="/recipes" className="text-sm text-neutral-600 hover:text-neutral-900">
-            ← Back
-          </Link>
+        <BackButton fallbackHref="/recipes" />
         </div>
 
         <h1 className="text-2xl font-semibold">{recipe.title}</h1>

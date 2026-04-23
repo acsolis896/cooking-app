@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { RemoveMealButton } from './RemoveMealButton'
 import {
   formatDayLabel,
   formatISODate,
@@ -112,35 +113,41 @@ export default async function PlanPage({ searchParams }: PageProps) {
                     </div>
                   ) : (
                     dayMeals.map((m) => {
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      const recipe = m.recipes as any
-                      const photoUrl = recipe?.photo_path
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const recipe = m.recipes as any
+                    const photoUrl = recipe?.photo_path
                         ? signedUrlMap.get(recipe.photo_path)
                         : null
-                      return (
+                    return (
                         <div
-                          key={m.id}
-                          className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white p-2"
+                        key={m.id}
+                        className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-white p-2"
                         >
-                          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-neutral-100">
+                        <Link
+                            href={recipe?.id ? `/recipes/${recipe.id}` : '/recipes'}
+                            className="flex min-w-0 flex-1 items-center gap-3"
+                        >
+                            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-neutral-100">
                             {photoUrl ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
                                 src={photoUrl}
                                 alt={recipe.title}
                                 className="h-full w-full object-cover"
-                              />
+                                />
                             ) : (
-                              <div className="flex h-full w-full items-center justify-center text-xl text-neutral-300">
+                                <div className="flex h-full w-full items-center justify-center text-xl text-neutral-300">
                                 🍳
-                              </div>
+                                </div>
                             )}
-                          </div>
-                          <div className="flex-1 truncate text-sm font-medium">
+                            </div>
+                            <div className="min-w-0 flex-1 truncate text-sm font-medium">
                             {recipe?.title ?? 'Untitled'}
-                          </div>
+                            </div>
+                        </Link>
+                        <RemoveMealButton id={m.id} />
                         </div>
-                      )
+                    )
                     })
                   )}
                   <Link
