@@ -46,10 +46,15 @@ export default async function Home() {
             </div>
           </Link>
 
-          <div className="block p-5 bg-zinc-100 rounded-lg border border-zinc-200 opacity-60">
+          <Link
+            href="/plan"
+            className="block p-5 bg-white rounded-lg border border-zinc-200"
+          >
             <div className="font-semibold text-lg">Meal planner</div>
-            <div className="text-sm text-zinc-500 mt-1">Coming soon</div>
-          </div>
+            <div className="text-sm text-zinc-500 mt-1">
+              Plan your week of meals
+            </div>
+          </Link>
 
           <div className="block p-5 bg-zinc-100 rounded-lg border border-zinc-200 opacity-60">
             <div className="font-semibold text-lg">Grocery list</div>
