@@ -156,7 +156,6 @@ export default function NewRecipePage() {
             <input
               type="file"
               accept="image/*"
-              capture="environment"
               onChange={onPhotoChange}
               className="mt-1 block w-full text-sm text-neutral-700 file:mr-3 file:rounded-lg file:border-0 file:bg-neutral-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-neutral-800"
             />
