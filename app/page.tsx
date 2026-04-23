@@ -56,10 +56,15 @@ export default async function Home() {
             </div>
           </Link>
 
-          <div className="block p-5 bg-zinc-100 rounded-lg border border-zinc-200 opacity-60">
+          <Link
+            href="/groceries"
+            className="block p-5 bg-white rounded-lg border border-zinc-200"
+          >
             <div className="font-semibold text-lg">Grocery list</div>
-            <div className="text-sm text-zinc-500 mt-1">Coming soon</div>
-          </div>
+            <div className="text-sm text-zinc-500 mt-1">
+              Generate from your meal plan
+            </div>
+          </Link>
         </nav>
       </div>
     </div>
