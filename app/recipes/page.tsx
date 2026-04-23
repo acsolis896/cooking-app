@@ -51,8 +51,11 @@ export default async function RecipesPage() {
         {recipes && recipes.length > 0 && (
           <ul className="space-y-3">
             {recipes.map((r) => (
-              <li key={r.id}>
-                <div className="block p-4 bg-white rounded-lg border border-zinc-200">
+            <li key={r.id}>
+                <Link
+                    href={`/recipes/${r.id}`}
+                    className="block p-4 bg-white rounded-lg border border-zinc-200 hover:border-zinc-300 transition"
+                >
                   <h2 className="font-semibold text-lg">{r.title}</h2>
                   <p className="text-sm text-zinc-500 mt-1">
                     {[
@@ -63,7 +66,7 @@ export default async function RecipesPage() {
                       .filter(Boolean)
                       .join(' · ') || 'No details'}
                   </p>
-                </div>
+                </Link>
               </li>
             ))}
           </ul>
