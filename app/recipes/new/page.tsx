@@ -5,32 +5,32 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 
-type Ingredient = { name: string; quantity: string; unit: string }
+type Ingredient = {
+  name: string
+  quantity: string
+  unit: string
+}
 
 export default function NewRecipePage() {
   const router = useRouter()
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  // Basic fields
   const [title, setTitle] = useState('')
   const [servings, setServings] = useState('')
   const [prepMinutes, setPrepMinutes] = useState('')
   const [cookMinutes, setCookMinutes] = useState('')
-  const [instructions, setInstructions] = useState('')
-
-  // Dynamic ingredient list
+  const [instructionsText, setInstructionsText] = useState('')
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [ingredients, setIngredients] = useState<Ingredient[]>([
     { name: '', quantity: '', unit: '' },
   ])
 
-  const [error, setError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-
   function updateIngredient(index: number, field: keyof Ingredient, value: string) {
-    setIngredients((prev) => {
-      const next = [...prev]
-      next[index] = { ...next[index], [field]: value }
-      return next
-    })
+    setIngredients((prev) =>
+      prev.map((ing, i) => (i === index ? { ...ing, [field]: value } : ing))
+    )
   }
 
   function addIngredient() {
@@ -41,170 +41,213 @@ export default function NewRecipePage() {
     setIngredients((prev) => prev.filter((_, i) => i !== index))
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function onPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null
+    setPhotoFile(file)
+    if (file) {
+      const url = URL.createObjectURL(file)
+      setPhotoPreview(url)
+    } else {
+      setPhotoPreview(null)
+    }
+  }
+
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setSaving(true)
     setError(null)
+    setSaving(true)
 
-    // Split instructions textarea into an array of steps (one per non-empty line)
-    const steps = instructions
-      .split('\n')
-      .map((s) => s.trim())
-      .filter(Boolean)
+    try {
+      const { data: userData, error: userError } = await supabase.auth.getUser()
+      if (userError || !userData.user) throw new Error('Not logged in')
+      const userId = userData.user.id
 
-    // Get current user id (needed for the insert because of RLS)
-    const { data: userData, error: userError } = await supabase.auth.getUser()
-    if (userError || !userData.user) {
-      setError('You must be signed in.')
-      setSaving(false)
-      return
-    }
+      // 1. Insert the recipe row (without photo_path yet)
+      const { data: recipe, error: recipeError } = await supabase
+        .from('recipes')
+        .insert({
+          user_id: userId,
+          title: title.trim(),
+          servings: servings ? Number(servings) : null,
+          prep_minutes: prepMinutes ? Number(prepMinutes) : null,
+          cook_minutes: cookMinutes ? Number(cookMinutes) : null,
+          instructions: instructionsText
+            .split('\n')
+            .map((s) => s.trim())
+            .filter(Boolean),
+        })
+        .select()
+        .single()
+      if (recipeError || !recipe) throw new Error(recipeError?.message ?? 'Failed to save recipe')
 
-    // 1. Insert the recipe row
-    const { data: recipe, error: recipeError } = await supabase
-      .from('recipes')
-      .insert({
-        user_id: userData.user.id,
-        title,
-        servings: servings ? Number(servings) : null,
-        prep_minutes: prepMinutes ? Number(prepMinutes) : null,
-        cook_minutes: cookMinutes ? Number(cookMinutes) : null,
-        instructions: steps,
-      })
-      .select()
-      .single()
+      // 2. Upload photo (if provided)
+      let photoPath: string | null = null
+      if (photoFile) {
+        const ext = (photoFile.name.split('.').pop() ?? 'jpg').toLowerCase()
+        const path = `${userId}/${recipe.id}.${ext}`
+        const { error: uploadError } = await supabase.storage
+          .from('recipe-photos')
+          .upload(path, photoFile, {
+            upsert: true,
+            contentType: photoFile.type || 'image/jpeg',
+          })
+        if (uploadError) throw new Error(`Photo upload failed: ${uploadError.message}`)
+        photoPath = path
 
-    if (recipeError || !recipe) {
-      setError(recipeError?.message ?? 'Failed to save recipe.')
-      setSaving(false)
-      return
-    }
-
-    // 2. Insert the ingredient rows (only ones with a name)
-    const ingredientRows = ingredients
-      .filter((i) => i.name.trim() !== '')
-      .map((i, idx) => ({
-        recipe_id: recipe.id,
-        name: i.name.trim(),
-        quantity: i.quantity ? Number(i.quantity) : null,
-        unit: i.unit.trim() || null,
-        position: idx,
-      }))
-
-    if (ingredientRows.length > 0) {
-      const { error: ingError } = await supabase
-        .from('ingredients')
-        .insert(ingredientRows)
-      if (ingError) {
-        setError(`Recipe saved, but ingredients failed: ${ingError.message}`)
-        setSaving(false)
-        return
+        // Save the path onto the recipe
+        const { error: updateError } = await supabase
+          .from('recipes')
+          .update({ photo_path: photoPath })
+          .eq('id', recipe.id)
+        if (updateError) throw new Error(updateError.message)
       }
-    }
 
-    router.push('/recipes')
-    router.refresh()
+      // 3. Insert ingredients
+      const ingredientRows = ingredients
+        .filter((ing) => ing.name.trim())
+        .map((ing, position) => ({
+          recipe_id: recipe.id,
+          name: ing.name.trim(),
+          quantity: ing.quantity ? Number(ing.quantity) : null,
+          unit: ing.unit.trim() || null,
+          position,
+        }))
+
+      if (ingredientRows.length > 0) {
+        const { error: ingError } = await supabase.from('ingredients').insert(ingredientRows)
+        if (ingError) throw new Error(ingError.message)
+      }
+
+      router.push('/recipes')
+      router.refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+      setSaving(false)
+    }
   }
 
   return (
-    <div className="min-h-screen p-6 bg-zinc-50">
-      <div className="max-w-xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">Add recipe</h1>
-          <Link href="/recipes" className="text-sm text-zinc-600">
+    <main className="min-h-dvh bg-white px-4 py-6 pb-24">
+      <div className="mx-auto max-w-xl">
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="text-2xl font-semibold">Add recipe</h1>
+          <Link href="/recipes" className="text-sm text-neutral-600 hover:text-neutral-900">
             Cancel
           </Link>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={onSubmit} className="space-y-6">
           {/* Title */}
           <div>
-            <label className="block text-sm font-medium mb-1">Title</label>
+            <label className="block text-sm font-medium text-neutral-700">Title</label>
             <input
               type="text"
+              required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              required
-              className="w-full px-4 py-3 border border-zinc-300 rounded-lg bg-white"
+              placeholder="Grandma's lasagna"
+              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2"
             />
           </div>
 
-          {/* Servings + timing */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* Photo */}
+          <div>
+            <label className="block text-sm font-medium text-neutral-700">Photo</label>
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={onPhotoChange}
+              className="mt-1 block w-full text-sm text-neutral-700 file:mr-3 file:rounded-lg file:border-0 file:bg-neutral-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-neutral-800"
+            />
+            {photoPreview && (
+              <img
+                src={photoPreview}
+                alt="Preview"
+                className="mt-3 h-48 w-full rounded-lg object-cover"
+              />
+            )}
+          </div>
+
+          {/* Meta */}
+          <div className="grid grid-cols-3 gap-2">
             <div>
-              <label className="block text-sm font-medium mb-1">Servings</label>
+              <label className="block text-sm font-medium text-neutral-700">Servings</label>
               <input
                 type="number"
                 min="1"
                 value={servings}
                 onChange={(e) => setServings(e.target.value)}
-                className="w-full px-3 py-3 border border-zinc-300 rounded-lg bg-white"
+                className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Prep (min)</label>
+              <label className="block text-sm font-medium text-neutral-700">Prep (min)</label>
               <input
                 type="number"
                 min="0"
                 value={prepMinutes}
                 onChange={(e) => setPrepMinutes(e.target.value)}
-                className="w-full px-3 py-3 border border-zinc-300 rounded-lg bg-white"
+                className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Cook (min)</label>
+              <label className="block text-sm font-medium text-neutral-700">Cook (min)</label>
               <input
                 type="number"
                 min="0"
                 value={cookMinutes}
                 onChange={(e) => setCookMinutes(e.target.value)}
-                className="w-full px-3 py-3 border border-zinc-300 rounded-lg bg-white"
+                className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2"
               />
             </div>
           </div>
 
           {/* Ingredients */}
           <div>
-            <label className="block text-sm font-medium mb-2">Ingredients</label>
-            <div className="space-y-2">
-              {ingredients.map((ing, idx) => (
-                <div key={idx} className="flex gap-2">
+            <label className="block text-sm font-medium text-neutral-700">Ingredients</label>
+            <div className="mt-2 space-y-2">
+              {ingredients.map((ing, i) => (
+                <div key={i} className="flex gap-2">
                   <input
                     type="text"
+                    inputMode="decimal"
                     placeholder="Qty"
                     value={ing.quantity}
-                    onChange={(e) => updateIngredient(idx, 'quantity', e.target.value)}
-                    className="w-16 px-2 py-2 border border-zinc-300 rounded-lg bg-white text-sm"
+                    onChange={(e) => updateIngredient(i, 'quantity', e.target.value)}
+                    className="w-16 rounded-lg border border-neutral-300 px-2 py-2 text-sm"
                   />
                   <input
                     type="text"
                     placeholder="Unit"
                     value={ing.unit}
-                    onChange={(e) => updateIngredient(idx, 'unit', e.target.value)}
-                    className="w-20 px-2 py-2 border border-zinc-300 rounded-lg bg-white text-sm"
+                    onChange={(e) => updateIngredient(i, 'unit', e.target.value)}
+                    className="w-20 rounded-lg border border-neutral-300 px-2 py-2 text-sm"
                   />
                   <input
                     type="text"
                     placeholder="Ingredient"
                     value={ing.name}
-                    onChange={(e) => updateIngredient(idx, 'name', e.target.value)}
-                    className="flex-1 px-3 py-2 border border-zinc-300 rounded-lg bg-white text-sm"
+                    onChange={(e) => updateIngredient(i, 'name', e.target.value)}
+                    className="flex-1 rounded-lg border border-neutral-300 px-2 py-2 text-sm"
                   />
-                  <button
-                    type="button"
-                    onClick={() => removeIngredient(idx)}
-                    className="px-2 text-zinc-500 hover:text-red-600"
-                    aria-label="Remove ingredient"
-                  >
-                    ×
-                  </button>
+                  {ingredients.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeIngredient(i)}
+                      className="rounded-lg px-2 text-neutral-500 hover:bg-neutral-100"
+                      aria-label="Remove ingredient"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
             <button
               type="button"
               onClick={addIngredient}
-              className="mt-2 text-sm text-green-700 font-medium"
+              className="mt-2 text-sm font-medium text-green-700 hover:text-green-800"
             >
               + Add ingredient
             </button>
@@ -212,29 +255,36 @@ export default function NewRecipePage() {
 
           {/* Instructions */}
           <div>
-            <label className="block text-sm font-medium mb-1">
-              Instructions <span className="text-zinc-500">(one step per line)</span>
+            <label className="block text-sm font-medium text-neutral-700">
+              Instructions
+              <span className="ml-2 text-xs font-normal text-neutral-500">
+                (one step per line)
+              </span>
             </label>
             <textarea
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
-              rows={8}
-              className="w-full px-4 py-3 border border-zinc-300 rounded-lg bg-white"
-              placeholder={'Preheat oven to 400°F\nMix dry ingredients\n...'}
+              rows={6}
+              value={instructionsText}
+              onChange={(e) => setInstructionsText(e.target.value)}
+              placeholder={'Preheat oven to 375°F\nMix the dry ingredients\n...'}
+              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2"
             />
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+              {error}
+            </div>
+          )}
 
           <button
             type="submit"
             disabled={saving}
-            className="w-full py-3 bg-green-600 text-white rounded-lg font-medium disabled:opacity-50"
+            className="w-full rounded-lg bg-green-600 px-4 py-3 font-medium text-white hover:bg-green-700 disabled:opacity-50"
           >
             {saving ? 'Saving...' : 'Save recipe'}
           </button>
         </form>
       </div>
-    </div>
+    </main>
   )
 }

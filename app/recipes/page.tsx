@@ -2,82 +2,101 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 
+export const dynamic = 'force-dynamic'
+
 export default async function RecipesPage() {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
 
-  if (!user) {
-    redirect('/login')
-  }
+  const { data: userData } = await supabase.auth.getUser()
+  if (!userData.user) redirect('/login')
 
   const { data: recipes, error } = await supabase
     .from('recipes')
-    .select('id, title, servings, prep_minutes, cook_minutes, created_at')
+    .select('id, title, servings, prep_minutes, cook_minutes, photo_path, created_at')
     .order('created_at', { ascending: false })
 
+  if (error) {
+    return (
+      <main className="min-h-dvh bg-white px-4 py-6">
+        <p className="text-red-700">Error loading recipes: {error.message}</p>
+      </main>
+    )
+  }
+
+  // Sign URLs for all photos in one batch (only for recipes that have a photo)
+  const photoPaths = (recipes ?? []).map((r) => r.photo_path).filter((p): p is string => !!p)
+  const signedUrlMap = new Map<string, string>()
+  if (photoPaths.length > 0) {
+    const { data: signed } = await supabase.storage
+      .from('recipe-photos')
+      .createSignedUrls(photoPaths, 60 * 60) // 1 hour
+    signed?.forEach((s) => {
+      if (s.path && s.signedUrl) signedUrlMap.set(s.path, s.signedUrl)
+    })
+  }
+
   return (
-    <div className="min-h-screen p-6 bg-zinc-50">
-      <div className="max-w-xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">My recipes</h1>
+    <main className="min-h-dvh bg-white px-4 py-6 pb-24">
+      <div className="mx-auto max-w-xl">
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="text-2xl font-semibold">My recipes</h1>
           <Link
             href="/recipes/new"
-            className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium text-sm"
+            className="rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
           >
             + Add
           </Link>
         </div>
 
-        {error && (
-          <p className="text-sm text-red-600 mb-4">
-            Couldn&apos;t load recipes: {error.message}
-          </p>
-        )}
-
-        {recipes && recipes.length === 0 && (
-          <div className="text-center py-16">
-            <p className="text-zinc-600 mb-4">No recipes yet.</p>
+        {(!recipes || recipes.length === 0) ? (
+          <div className="rounded-xl border border-dashed border-neutral-300 px-4 py-12 text-center text-neutral-500">
+            <p>No recipes yet.</p>
             <Link
               href="/recipes/new"
-              className="text-green-700 font-medium"
+              className="mt-3 inline-block text-sm font-medium text-green-700 hover:text-green-800"
             >
-              Add your first recipe →
+              Add your first one →
             </Link>
           </div>
-        )}
-
-        {recipes && recipes.length > 0 && (
-          <ul className="space-y-3">
-            {recipes.map((r) => (
-            <li key={r.id}>
-                <Link
+        ) : (
+          <ul className="grid grid-cols-2 gap-3">
+            {recipes.map((r) => {
+              const photoUrl = r.photo_path ? signedUrlMap.get(r.photo_path) : null
+              return (
+                <li key={r.id}>
+                  <Link
                     href={`/recipes/${r.id}`}
-                    className="block p-4 bg-white rounded-lg border border-zinc-200 hover:border-zinc-300 transition"
-                >
-                  <h2 className="font-semibold text-lg">{r.title}</h2>
-                  <p className="text-sm text-zinc-500 mt-1">
-                    {[
-                      r.servings ? `${r.servings} servings` : null,
-                      r.prep_minutes ? `${r.prep_minutes} min prep` : null,
-                      r.cook_minutes ? `${r.cook_minutes} min cook` : null,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ') || 'No details'}
-                  </p>
-                </Link>
-              </li>
-            ))}
+                    className="block overflow-hidden rounded-xl border border-neutral-200 bg-white transition hover:border-neutral-300 hover:shadow-sm"
+                  >
+                    <div className="aspect-square w-full bg-neutral-100">
+                      {photoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={photoUrl}
+                          alt={r.title}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-3xl text-neutral-300">
+                          🍳
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <h2 className="truncate text-sm font-medium">{r.title}</h2>
+                      {(r.prep_minutes || r.cook_minutes) && (
+                        <p className="mt-0.5 text-xs text-neutral-500">
+                          {(r.prep_minutes ?? 0) + (r.cook_minutes ?? 0)} min
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                </li>
+              )
+            })}
           </ul>
         )}
-
-        <div className="mt-8 text-center">
-          <Link href="/" className="text-sm text-zinc-500">
-            ← Home
-          </Link>
-        </div>
       </div>
-    </div>
+    </main>
   )
 }
