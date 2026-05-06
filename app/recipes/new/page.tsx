@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
+import { processImageForUpload } from '@/lib/image'
 
 type Ingredient = {
   name: string
@@ -15,6 +16,7 @@ export default function NewRecipePage() {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [statusText, setStatusText] = useState<string>('Save recipe')
 
   const [title, setTitle] = useState('')
   const [servings, setServings] = useState('')
@@ -56,6 +58,7 @@ export default function NewRecipePage() {
     e.preventDefault()
     setError(null)
     setSaving(true)
+    setStatusText('Saving recipe...')
 
     try {
       const { data: userData, error: userError } = await supabase.auth.getUser()
@@ -81,26 +84,38 @@ export default function NewRecipePage() {
       if (recipeError || !recipe) throw new Error(recipeError?.message ?? 'Failed to save recipe')
 
       // 2. Upload photo (if provided)
-      let photoPath: string | null = null
-      if (photoFile) {
-        const ext = (photoFile.name.split('.').pop() ?? 'jpg').toLowerCase()
-        const path = `${userId}/${recipe.id}.${ext}`
+        let photoPath: string | null = null
+        if (photoFile) {
+        setStatusText('Processing photo...')
+        let processedBlob: Blob
+        try {
+            processedBlob = await processImageForUpload(photoFile)
+        } catch (procErr) {
+            throw new Error(
+            `Could not process photo: ${
+                procErr instanceof Error ? procErr.message : 'unknown error'
+            }`
+            )
+        }
+
+        setStatusText('Uploading photo...')
+        const path = `${userId}/${recipe.id}.jpg`
         const { error: uploadError } = await supabase.storage
-          .from('recipe-photos')
-          .upload(path, photoFile, {
+            .from('recipe-photos')
+            .upload(path, processedBlob, {
             upsert: true,
-            contentType: photoFile.type || 'image/jpeg',
-          })
+            contentType: 'image/jpeg',
+            })
         if (uploadError) throw new Error(`Photo upload failed: ${uploadError.message}`)
         photoPath = path
 
-        // Save the path onto the recipe
+        setStatusText('Saving recipe...')
         const { error: updateError } = await supabase
-          .from('recipes')
-          .update({ photo_path: photoPath })
-          .eq('id', recipe.id)
+            .from('recipes')
+            .update({ photo_path: photoPath })
+            .eq('id', recipe.id)
         if (updateError) throw new Error(updateError.message)
-      }
+        }
 
       // 3. Insert ingredients
       const ingredientRows = ingredients
@@ -121,8 +136,10 @@ export default function NewRecipePage() {
       router.push('/recipes')
       router.refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
-      setSaving(false)
+    console.error('Save recipe failed:', err)
+    setError(err instanceof Error ? err.message : 'Something went wrong')
+    setSaving(false)
+    setStatusText('Save recipe')
     }
   }
 
@@ -279,8 +296,8 @@ export default function NewRecipePage() {
             type="submit"
             disabled={saving}
             className="w-full rounded-lg bg-green-600 px-4 py-3 font-medium text-white hover:bg-green-700 disabled:opacity-50"
-          >
-            {saving ? 'Saving...' : 'Save recipe'}
+            >
+            {saving ? statusText : 'Save recipe'}
           </button>
         </form>
       </div>
