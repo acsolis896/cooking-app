@@ -65,6 +65,12 @@ export default async function RecipeDetailPage({ params }: PageProps) {
       <div className="mx-auto max-w-xl px-4 py-6">
         <div className="mb-4 flex items-center justify-between">
         <BackButton fallbackHref="/recipes" />
+        <Link
+            href={`/recipes/${recipe.id}/edit`}
+            className="rounded-lg bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800"
+        >
+            Edit
+        </Link>
         </div>
 
         <h1 className="text-2xl font-semibold">{recipe.title}</h1>
