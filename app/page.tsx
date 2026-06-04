@@ -18,7 +18,7 @@ export default async function Home() {
   }
 
   return (
-    <div className="min-h-screen p-6 bg-zinc-50">
+    <div className="min-h-screen p-6 pb-28 bg-zinc-50">
       <div className="max-w-xl mx-auto">
         <div className="flex items-center justify-between mb-10">
           <div>
