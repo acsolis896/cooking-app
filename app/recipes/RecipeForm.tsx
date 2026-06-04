@@ -182,8 +182,12 @@ export function RecipeForm({ mode, initial }: Props) {
         if (ingError) throw new Error(ingError.message)
       }
 
-      router.push(isEdit ? `/recipes/${recipeId}` : '/recipes')
-      router.refresh()
+      if (isEdit) {
+        router.replace(`/recipes/${recipeId}`)
+        } else {
+        router.push('/recipes')
+        }
+        router.refresh()
     } catch (err) {
       console.error('Save recipe failed:', err)
       setError(err instanceof Error ? err.message : 'Something went wrong')
@@ -203,8 +207,9 @@ export function RecipeForm({ mode, initial }: Props) {
           </h1>
           <Link
             href={cancelHref}
+            replace={isEdit}
             className="text-sm text-neutral-600 hover:text-neutral-900"
-          >
+            >
             Cancel
           </Link>
         </div>
